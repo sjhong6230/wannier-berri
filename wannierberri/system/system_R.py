@@ -81,7 +81,7 @@ class System_R(System):
         if _getFF:
             self.needed_R_matrices.add('FF')
         if SHCryoo:
-            self.needed_R_matrices.update(['AA', 'SS', 'SA', 'SHA', 'SR', 'SH', 'SHR'])
+            self.needed_R_matrices.update(['AA', 'SS', 'SA', 'SHA', 'SH'])
         if SHCqiao:
             self.needed_R_matrices.update(['AA', 'SS', 'SR', 'SH', 'SHR'])
         if OSD:
@@ -249,24 +249,33 @@ class System_R(System):
             use_wcc_phase=self.use_wcc_phase,
             DFT_code=DFT_code)
 
+        self.check_AA_diag_zero(msg="before symmetrization", set_zero=True)
+
+
         print("Wannier Centers cart (raw):\n", self.wannier_centers_cart)
         print("Wannier Centers red: (raw):\n", self.wannier_centers_reduced)
         (self._XX_R, self.iRvec), self.wannier_centers_cart = symmetrize_wann.symmetrize()
 
-        if self.has_R_mat('AA'):
-            A_diag = self.get_R_mat('AA')[:, :, self.iR0].diagonal()
-            if self.use_wcc_phase:
-                A_diag_max = abs(A_diag).max()
-                if A_diag_max > 1e-5:
-                    warnings.warn(
-                        f"the maximal value of diagonal position matrix elements is {A_diag_max}. This may signal a problem")
-                self.get_R_mat('AA')[self.range_wann, self.range_wann, self.iR0, :] = 0
         print("Wannier Centers cart (symmetrized):\n", self.wannier_centers_cart)
         print("Wannier Centers red: (symmetrized):\n", self.wannier_centers_reduced)
         self.clear_cached_R()
         self.clear_cached_wcc()
+        self.check_AA_diag_zero(msg="after symmetrization", set_zero=True)
         self.symmetrize_info = dict(proj=proj, positions=positions, atom_name=atom_name, soc=soc, magmom=magmom,
                                     DFT_code=DFT_code)
+
+    def check_AA_diag_zero(self, msg="", set_zero=True):
+        if self.has_R_mat('AA') and self.use_wcc_phase:
+            A_diag = self.get_R_mat('AA')[:, :, self.iR0].diagonal()
+            A_diag_max = abs(A_diag).max()
+            if A_diag_max > 1e-5:
+                warnings.warn(
+                    f"the maximal value of diagonal position matrix elements {msg} is {A_diag_max}."
+                    f"This may signal a problem\n {A_diag}")
+                if set_zero:
+                    warnings.warn("setting AA diagonal to zero")
+            if set_zero:
+                self.get_R_mat('AA')[self.range_wann, self.range_wann, self.iR0, :] = 0
 
     def check_periodic(self):
         exclude = np.zeros(self.nRvec, dtype=bool)
@@ -409,7 +418,7 @@ class System_R(System):
     def to_tb_file(self, tb_file=None):
         """
         Write the system in the format of the wannier90_tb.dat file
-        Note : in is always written in phase convention I
+        Note : it is always written in phase convention II
         """
         if tb_file is None:
             tb_file = self.seedname + "_fromchk_tb.dat"
@@ -540,11 +549,20 @@ class System_R(System):
             norm = np.linalg.norm(CC_R_new - self.conj_XX_R(CC_R_new))
             assert norm < 1e-10, f"CC_R after applying wcc_phase is not Hermitian, norm={norm}"
             R_new['CC'] = CC_R_new
-        unknown = set(self._XX_R.keys()) - set(['Ham', 'AA', 'BB', 'CC', 'SS'])
+        if self.has_R_mat('SA'):
+            SA_R_new = self.get_R_mat('SA').copy() - self.get_R_mat('SS')[:, :, :,
+                    None, :] * self.wannier_centers_cart[None, :, None, :, None]
+            R_new['SA'] = SA_R_new
+        if self.has_R_mat('SHA'):
+            SHA_R_new = self.get_R_mat('SHA').copy() - self.get_R_mat('SH')[:, :, :,
+                    None, :] * self.wannier_centers_cart[None, :, None, :, None]
+            R_new['SHA'] = SHA_R_new
+
+        unknown = set(self._XX_R.keys()) - set(['Ham', 'AA', 'BB', 'CC', 'SS', 'SH', 'SA', 'SHA'])
         if len(unknown) > 0:
             raise NotImplementedError(f"Conversion of conventions for {list(unknown)} is not implemented")
 
-        for X in ['AA', 'BB', 'CC']:
+        for X in ['AA', 'BB', 'CC', 'SA', 'SHA']:
             if self.has_R_mat(X):
                 self.set_R_mat(X, R_new[X], reset=True)
 

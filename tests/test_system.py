@@ -206,7 +206,7 @@ def test_system_GaAs_W90_wccFD(check_system, system_GaAs_W90_wccFD):
 def test_system_GaAs_W90_wccJM(check_system, system_GaAs_W90_wccJM):
     check_system(
         system_GaAs_W90_wccJM, "GaAs_W90_wccJM",
-        matrices=['Ham', 'AA', 'BB', 'CC', 'SS', 'OO', 'GG'],
+        matrices=['Ham', 'AA', 'BB', 'CC', 'SS', 'SH', 'SA', 'SHA', 'OO', 'GG'],
     )
 
 
@@ -265,6 +265,7 @@ def test_system_Si_W90_wccFD(check_system, system_Si_W90_wccFD):
             system_Si_W90_wccFD, "Si_W90_wccFD",
             matrices=['Ham', 'AA', 'BB', 'CC', 'GG', 'OO']
                 )
+
 
 
 def test_system_Haldane_TBmodels(check_system, system_Haldane_TBmodels):
